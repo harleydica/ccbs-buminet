@@ -504,6 +504,7 @@ switch ($action) {
         $service_type = _post('service_type');
         $account_type = _post('account_type');
         $coordinates = _post('coordinates');
+        $ktp = _post('ktp');
         //post Customers Attributes
         $custom_field_names = (array) $_POST['custom_field_name'];
         $custom_field_values = (array) $_POST['custom_field_value'];
@@ -544,6 +545,7 @@ switch ($action) {
             $d->phonenumber = Lang::phoneFormat($phonenumber);
             $d->service_type = $service_type;
             $d->coordinates = $coordinates;
+            $d->ktp = $ktp;
             $d->city = $city;
             $d->district = $district;
             $d->state = $state;
@@ -634,6 +636,7 @@ switch ($action) {
         $service_type = _post('service_type');
         $coordinates = _post('coordinates');
         $status = _post('status');
+        $ktp = _post('ktp');
         //additional information
         $city = _post('city');
         $district = _post('district');
@@ -762,6 +765,7 @@ switch ($action) {
             $c->phonenumber = $phonenumber;
             $c->service_type = $service_type;
             $c->coordinates = $coordinates;
+            $c->ktp = $ktp;
             $c->city = $city;
             $c->district = $district;
             $c->state = $state;
@@ -873,7 +877,7 @@ switch ($action) {
         if ($search != '') {
             $query = ORM::for_table('tbl_customers')
                 ->whereRaw("username LIKE '%$search%' OR fullname LIKE '%$search%' OR address LIKE '%$search%' " .
-                    "OR phonenumber LIKE '%$search%' OR email LIKE '%$search%' AND status='$filter'");
+                    "OR phonenumber LIKE '%$search%' OR email LIKE '%$search%' OR ktp LIKE '%$search%' AND status='$filter'");
         } else {
             $query = ORM::for_table('tbl_customers');
             $query->where("status", $filter);
