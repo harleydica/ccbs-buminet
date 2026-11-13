@@ -343,6 +343,7 @@ switch ($action) {
             // Fetch the Customers Attributes values from the tbl_customer_custom_fields table
             $customFields = ORM::for_table('tbl_customers_fields')
                 ->where('customer_id', $customer['id'])
+                ->where_not_equal('field_name', 'ODP')
                 ->find_many();
             $v = $routes['3'];
             if (empty($v)) {
@@ -394,6 +395,7 @@ switch ($action) {
         // Fetch the Customers Attributes values from the tbl_customers_fields table
         $customFields = ORM::for_table('tbl_customers_fields')
             ->where('customer_id', $id)
+            ->where_not_equal('field_name', 'ODP')
             ->find_many();
         if ($d) {
             if (isset($routes['3']) && $routes['3'] == 'deletePhoto') {
@@ -570,7 +572,7 @@ switch ($action) {
                     $name = $custom_field_names[$i];
                     $value = $custom_field_values[$i];
 
-                    if (!empty($name)) {
+                    if (!empty($name) && strcasecmp(trim($name), 'ODP') !== 0) {
                         $customField = ORM::for_table('tbl_customers_fields')->create();
                         $customField->customer_id = $customerId;
                         $customField->field_name = $name;
@@ -674,6 +676,7 @@ switch ($action) {
         //lets find user Customers Attributes using id
         $customFields = ORM::for_table('tbl_customers_fields')
             ->where('customer_id', $id)
+            ->where_not_equal('field_name', 'ODP')
             ->find_many();
 
         $oldusername = $c['username'];
@@ -810,12 +813,14 @@ switch ($action) {
                         $fieldName = $newCustomFieldNames[$i];
                         $fieldValue = $newCustomFieldValues[$i];
 
-                        // Insert the new Customers Attributes
-                        $newCustomField = ORM::for_table('tbl_customers_fields')->create();
-                        $newCustomField->set('customer_id', $id);
-                        $newCustomField->set('field_name', $fieldName);
-                        $newCustomField->set('field_value', $fieldValue);
-                        $newCustomField->save();
+                        if (strcasecmp(trim($fieldName), 'ODP') !== 0) {
+                            // Insert the new Customers Attributes
+                            $newCustomField = ORM::for_table('tbl_customers_fields')->create();
+                            $newCustomField->set('customer_id', $id);
+                            $newCustomField->set('field_name', $fieldName);
+                            $newCustomField->set('field_value', $fieldValue);
+                            $newCustomField->save();
+                        }
                     }
                 }
             }
