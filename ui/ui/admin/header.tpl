@@ -126,6 +126,24 @@
                         </a>
                     </li>
                     {$_MENU_AFTER_CUSTOMERS}
+                    <li class="{if $_system_menu eq 'tickets'}active{/if} treeview">
+                        <a href="#">
+                            <i class="fa fa-ticket"></i> <span>{Lang::T('Ticketing')}</span>
+                            <span class="pull-right-container">
+                                <i class="fa fa-angle-left pull-right"></i>
+                            </span>
+                        </a>
+                        <ul class="treeview-menu">
+                            <li {if $_routes[0] eq 'tickets' and $_routes[1] eq '' }class="active" {/if}><a
+                                    href="{Text::url('tickets')}">{Lang::T('All Tickets')}</a></li>
+                            <li {if $_routes[0] eq 'tickets' and $_routes[1] eq 'add' }class="active" {/if}><a
+                                    href="{Text::url('tickets/add')}">{Lang::T('New Ticket')}</a></li>
+                            <li {if $_routes[0] eq 'tickets' and $filters['type'] eq 'customer' }class="active" {/if}><a
+                                    href="{Text::url('tickets')}&type=customer">{Lang::T('Customer Tickets')}</a></li>
+                            <li {if $_routes[0] eq 'tickets' and $filters['type'] eq 'maintenance' }class="active" {/if}><a
+                                    href="{Text::url('tickets')}&type=maintenance">{Lang::T('Maintenance')}</a></li>
+                        </ul>
+                    </li>
                     {if !in_array($_admin['user_type'],['Report'])}
                     <li class="{if $_routes[0] eq 'plan' || $_routes[0] eq 'coupons'}active{/if} treeview">
                         <a href="#">
