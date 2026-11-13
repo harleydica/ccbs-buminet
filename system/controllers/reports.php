@@ -41,7 +41,7 @@ switch ($action) {
         $tps = ($_GET['tps']) ? $_GET['tps'] : $types;
         $plans = array_column(ORM::for_table('tbl_transactions')->select('plan_name')->distinct('plan_name')->find_array(), 'plan_name');
         $plns = ($_GET['plns']) ? $_GET['plns'] : $plans;
-        $methods = array_column(ORM::for_table('tbl_transactions')->rawQuery("SELECT DISTINCT SUBSTRING_INDEX(`method`, ' - ', -1) as method FROM tbl_transactions;")->findArray(), 'method');
+        $methods = array_column(ORM::for_table('tbl_transactions')->rawQuery("SELECT DISTINCT SUBSTRING_INDEX(`method`, ' - ', 1) as method FROM tbl_transactions;")->findArray(), 'method');
         $mts = ($_GET['mts']) ? $_GET['mts'] : $methods;
         $routers = array_column(ORM::for_table('tbl_transactions')->select('routers')->distinct('routers')->find_array(), 'routers');
         $rts = ($_GET['rts']) ? $_GET['rts'] : $routers;
@@ -58,7 +58,7 @@ switch ($action) {
                             $w = [];
                             $v = [];
                             foreach ($mts as $mt) {
-                                $w[] ='method';
+                                $w[] = 'method';
                                 $v[] = "$mt - %";
                             }
                             $query->where_likes($w, $v);
@@ -91,7 +91,7 @@ switch ($action) {
                             $w = [];
                             $v = [];
                             foreach ($mts as $mt) {
-                                $w[] ='method';
+                                $w[] = 'method';
                                 $v[] = "$mt - %";
                             }
                             $query->where_likes($w, $v);
@@ -161,7 +161,7 @@ switch ($action) {
                         $w = [];
                         $v = [];
                         foreach ($mts as $mt) {
-                            $w[] ='method';
+                            $w[] = 'method';
                             $v[] = "$mt - %";
                         }
                         $query->where_likes($w, $v);
@@ -246,7 +246,7 @@ switch ($action) {
                         $total += $v;
                         $array['data'][] = $v;
                     }
-                    if($total>0){
+                    if ($total > 0) {
                         $result['datas'][] = $array;
                     }
                 }
@@ -258,79 +258,30 @@ switch ($action) {
         die();
     case 'by-date':
     case 'activation':
-        $q = (_post('q') ? _post('q') : _get('q'));
+        $q = trim(_post('q') ?: _get('q'));
         $keep = _post('keep');
+
         if (!empty($keep)) {
-            ORM::raw_execute("DELETE FROM tbl_transactions WHERE date < UNIX_TIMESTAMP(DATE_SUB(NOW(), INTERVAL $keep DAY))");
-            r2(getUrl('logs/list/'), 's', "Delete logs older than $keep days");
+            ORM::raw_execute("DELETE FROM tbl_transactions WHERE date < UNIX_TIMESTAMP(DATE_SUB(NOW(), INTERVAL ? DAY))", [$keep]);
+            r2(getUrl('reports/activation/'), 's', "Deleted logs older than $keep days");
         }
-
-        $methods = array_column(ORM::for_table('tbl_transactions')->rawQuery("SELECT DISTINCT SUBSTRING_INDEX(`method`, ' - ', 1) as method FROM tbl_transactions;")->findArray(), 'method');
-        $sellers = array_column(ORM::for_table('tbl_transactions')->rawQuery("SELECT DISTINCT SUBSTRING_INDEX(`method`, ' - ', -1) as seller FROM tbl_transactions;")->findArray(), 'seller');
-        $plans = array_column(ORM::for_table('tbl_transactions')->select('plan_name')->distinct('plan_name')->find_array(), 'plan_name');
-        $usernames = array_column(ORM::for_table('tbl_transactions')->select('username')->distinct('username')->find_array(), 'username');
-
-        $mts = ($_GET['mts']) ? $_GET['mts'] : [];
-        $sellers_selected = ($_GET['sellers']) ? $_GET['sellers'] : [];
-        $plns = ($_GET['plns']) ? $_GET['plns'] : [];
-        $uns = ($_GET['uns']) ? $_GET['uns'] : [];
-        $sd = _req('sd', date('Y-m-01'));
-        $ed = _req('ed', $mdate);
-        $ts = _req('ts', '00:00:00');
-        $te = _req('te', '23:59:59');
-        $urlquery = str_replace('_route=reports/activation', '', $_SERVER['QUERY_STRING']);
 
         $query = ORM::for_table('tbl_transactions')
-            ->whereRaw("UNIX_TIMESTAMP(CONCAT(`recharged_on`,' ',`recharged_time`)) >= " . strtotime("$sd $ts"))
-            ->whereRaw("UNIX_TIMESTAMP(CONCAT(`recharged_on`,' ',`recharged_time`)) <= " . strtotime("$ed $te"))
-            ->order_by_desc('id');
+            ->left_outer_join('tbl_customers', 'tbl_transactions.username = tbl_customers.username')
+            ->select('tbl_transactions.*')
+            ->select('tbl_customers.fullname', 'fullname')
+            ->order_by_desc('tbl_transactions.id');
 
-        if ($q != '') {
-            $query->where_like('invoice', '%' . $q . '%');
-        }
-        if (count($mts) > 0) {
-            $w = [];
-            $v = [];
-            foreach ($mts as $mt) {
-                $w[] ='method';
-                $v[] = "$mt%";
-            }
-            $query->where_likes($w, $v, 'OR');
-        }
-        if (count($sellers_selected) > 0) {
-            $w = [];
-            $v = [];
-            foreach ($sellers_selected as $seller) {
-                $w[] ='method';
-                $v[] = "%$seller";
-            }
-            $query->where_likes($w, $v, 'OR');
-        }
-        if (count($plns) > 0) {
-            $query->where_in('plan_name', $plns);
-        }
-        if (count($uns) > 0) {
-            $query->where_in('username', $uns);
+        if ($q !== '') {
+            $query->where_like('invoice', "%$q%");
         }
 
-        $d = Paginator::findMany($query, [], 10, $urlquery);
-
-        $ui->assign('methods', $methods);
-        $ui->assign('sellers', $sellers);
-        $ui->assign('plans', $plans);
-        $ui->assign('usernames', $usernames);
-        $ui->assign('filter', $urlquery);
-
-        // time
-        $ui->assign('sd', $sd);
-        $ui->assign('ed', $ed);
-        $ui->assign('ts', $ts);
-        $ui->assign('te', $te);
-
-        $ui->assign('mts', $mts);
-        $ui->assign('sellers_selected', $sellers_selected);
-        $ui->assign('plns', $plns);
-        $ui->assign('uns', $uns);
+        try {
+            $d = Paginator::findMany($query, ['q' => $q]);
+        } catch (Exception $e) {
+            r2(getUrl('reports/activation/'), 'e', 'Database query failed: ' . $e->getMessage());
+            $d = [];
+        }
 
         $ui->assign('activation', $d);
         $ui->assign('q', $q);
@@ -351,6 +302,10 @@ switch ($action) {
         $stype = _post('stype');
 
         $d = ORM::for_table('tbl_transactions');
+        $d->left_outer_join('tbl_customers', 'tbl_transactions.username = tbl_customers.username')
+            ->select('tbl_transactions.*')
+            ->select('tbl_customers.fullname', 'fullname')
+            ->order_by_desc('tbl_transactions.id');
         if ($stype != '') {
             $d->where('type', $stype);
         }
@@ -358,7 +313,7 @@ switch ($action) {
         $d->where_gte('recharged_on', $fdate);
         $d->where_lte('recharged_on', $tdate);
         $d->order_by_desc('id');
-        $x =  $d->find_many();
+        $x = $d->find_many();
 
         $dr = ORM::for_table('tbl_transactions');
         if ($stype != '') {
@@ -410,7 +365,10 @@ switch ($action) {
         $query = ORM::for_table('tbl_transactions')
             ->whereRaw("UNIX_TIMESTAMP(CONCAT(`recharged_on`,' ',`recharged_time`)) >= " . strtotime("$sd $ts"))
             ->whereRaw("UNIX_TIMESTAMP(CONCAT(`recharged_on`,' ',`recharged_time`)) <= " . strtotime("$ed $te"))
-            ->order_by_desc('id');
+            ->left_outer_join('tbl_customers', 'tbl_transactions.username = tbl_customers.username')
+            ->select('tbl_transactions.*')
+            ->select('tbl_customers.fullname', 'fullname')
+            ->order_by_desc('tbl_transactions.id');
         if (count($tps) > 0) {
             $query->where_in('type', $tps);
         }
@@ -418,7 +376,7 @@ switch ($action) {
             $w = [];
             $v = [];
             foreach ($mts as $mt) {
-                $w[] ='method';
+                $w[] = 'method';
                 $v[] = "$mt - %";
             }
             $query->where_likes($w, $v);

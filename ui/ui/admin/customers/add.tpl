@@ -18,7 +18,7 @@
                                     <span class="input-group-addon" id="basic-addon1"><i
                                             class="glyphicon glyphicon-user"></i></span>
                                 {/if}
-                                <input type="text" class="form-control" name="username" required
+                                <input type="text" class="form-control" id="username" name="username"
                                     placeholder="{if $_c['country_code_phone']!= ''}{$_c['country_code_phone']} {Lang::T('Phone Number')}{else}{Lang::T('Usernames')}{/if}">
                             </div>
                         </div>
@@ -139,12 +139,14 @@
                     </div>
                     <div class="form-group" id="method" style="display: none;">
                         <label class="col-md-3 control-label">{Lang::T('Notification via')}</label>
-                        <label class="col-md-3 control-label"><input type="checkbox" name="sms" value="1">
+                        <label class="col-md-1 control-label"><input type="checkbox" name="sms" value="1">
                             {Lang::T('SMS')}</label>
-                        <label class="col-md-2 control-label"><input type="checkbox" name="wa" value="1">
+                        <label class="col-md-1 control-label"><input type="checkbox" name="wa" value="1">
                             {Lang::T('WA')}</label>
-                        <label class="col-md-2 control-label"><input type="checkbox" name="mail" value="1">
+                        <label class="col-md-1 control-label"><input type="checkbox" name="mail" value="1">
                             {Lang::T('Email')}</label>
+                        <label class="col-md-1 control-label"><input type="checkbox" name="inbox" value="1">
+                            {Lang::T('Inbox')}</label>
                     </div>
                 </div>
             </div>
@@ -313,6 +315,14 @@
             getLocation();
         }
     </script>
+    <script>
+document.addEventListener('DOMContentLoaded', function () {
+    const usernameInput = document.getElementById('username');
+    if (usernameInput && !usernameInput.value.trim()) {
+        usernameInput.value = Math.floor(100000 + Math.random() * 900000);
+    }
+});
+</script>
 {/literal}
 
 

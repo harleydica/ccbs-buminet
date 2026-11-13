@@ -159,14 +159,13 @@ switch ($action) {
         run_hook('view_add_customer'); #HOOK
         $ui->assign('csrf_token',  Csrf::generateAndStoreToken());
 
-        // Generate next CST000001-style username to show in form
-        $prefix = 'CST';
-        $row = ORM::for_table('tbl_customers')
-            ->raw_query("SELECT MAX(CAST(SUBSTRING(username,4) AS UNSIGNED)) as mx FROM tbl_customers WHERE username LIKE '" . $prefix . "%'")
-            ->find_one();
-        $max = ($row && isset($row['mx'])) ? intval($row['mx']) : 0;
-        $next = $max + 1;
-        $next_username = sprintf($prefix . '%06d', $next);
+        // Generate a unique numeric-only username to show in form
+        $next_username = '';
+        $tries = 0;
+        do {
+            $next_username = (string) random_int(100000, 999999);
+            $tries++;
+        } while (ORM::for_table('tbl_customers')->where('username', $next_username)->find_one() && $tries < 1000);
         $ui->assign('next_username', $next_username);
 
         $ui->display('admin/customers/add.tpl');
@@ -476,22 +475,32 @@ switch ($action) {
         }
         $username = alphanumeric(_post('username'), ":+_.@-");
 
-        // If username is empty, auto-generate using CST000001, CST000002, ... format
-        if (trim($username) == '') {
-            $prefix = 'CST';
-            $row = ORM::for_table('tbl_customers')
-                ->raw_query("SELECT MAX(CAST(SUBSTRING(username,4) AS UNSIGNED)) as mx FROM tbl_customers WHERE username LIKE '" . $prefix . "%'")
-                ->find_one();
-            $max = ($row && isset($row['mx'])) ? intval($row['mx']) : 0;
-            $next = $max + 1;
-            $username = sprintf($prefix . '%06d', $next);
-            // Safety loop to avoid collision (in case of race/deleted rows)
-            $tries = 0;
-            while (ORM::for_table('tbl_customers')->where('username', $username)->find_one() && $tries < 1000) {
-                $next++;
-                $username = sprintf($prefix . '%06d', $next);
-                $tries++;
+        // legacy fix: convert old CST-prefixed usernames to plain numeric IDs
+        $legacyUsers = ORM::for_table('tbl_customers')->where_raw("username LIKE 'CST%'")->find_many();
+        foreach ($legacyUsers as $legacyUser) {
+            $legacyUsername = trim((string) $legacyUser->username);
+            if ($legacyUsername === '' || preg_match('/^[0-9]+$/', $legacyUsername)) {
+                continue;
             }
+
+            $newUsername = '';
+            $tries = 0;
+            do {
+                $newUsername = (string) random_int(100000, 999999);
+                $tries++;
+            } while (ORM::for_table('tbl_customers')->where('username', $newUsername)->where_not_equal('id', $legacyUser->id)->find_one() && $tries < 1000);
+
+            $legacyUser->username = $newUsername;
+            $legacyUser->save();
+        }
+
+        // If username is empty, auto-generate numeric-only random ID
+        if (trim($username) == '') {
+            $tries = 0;
+            do {
+                $username = (string) random_int(100000, 999999);
+                $tries++;
+            } while (ORM::for_table('tbl_customers')->where('username', $username)->find_one() && $tries < 1000);
         }
         $fullname = _post('fullname');
         $password = trim(_post('password'));
@@ -580,7 +589,7 @@ switch ($action) {
                 $welcomeMessage = str_replace('[[password]]', $d['password'], $welcomeMessage);
                 $welcomeMessage = str_replace('[[url]]', APP_URL . '/?_route=login', $welcomeMessage);
 
-                $emailSubject = "Welcome to " . $config['CompanyName'];
+                $subject = "Welcome to " . $config['CompanyName'];
 
                 $channels = [
                     'sms' => [
@@ -596,8 +605,13 @@ switch ($action) {
                     'email' => [
                         'enabled' => isset($_POST['mail']),
                         'method' => 'Message::sendEmail',
-                        'args' => [$d['email'], $emailSubject, $welcomeMessage, $d['email']]
-                    ]
+                        'args' => [$d['email'], $subject, $welcomeMessage, $d['email']]
+                    ],
+                    'inbox' => [
+                        'enabled' => isset($_POST['inbox']),
+                        'method' => 'Message::addToInbox',
+                        'args' => $d['id'], $subject, $welcomeMessage, $from = 'Admin'
+                    ],
                 ];
 
                 foreach ($channels as $channel => $message) {
@@ -875,9 +889,11 @@ switch ($action) {
         $append_url = "&order=" . urlencode($order) . "&filter=" . urlencode($filter) . "&orderby=" . urlencode($orderby);
 
         if ($search != '') {
+            $like = '%' . $search . '%';
             $query = ORM::for_table('tbl_customers')
-                ->whereRaw("username LIKE '%$search%' OR fullname LIKE '%$search%' OR address LIKE '%$search%' " .
-                    "OR phonenumber LIKE '%$search%' OR email LIKE '%$search%' OR ktp LIKE '%$search%' AND status='$filter'");
+                ->whereRaw("username LIKE ? OR fullname LIKE ? OR address LIKE ? " .
+                    "OR phonenumber LIKE ? OR email LIKE ? AND status = ?",
+                    [$like, $like, $like, $like, $like, $filter]);
         } else {
             $query = ORM::for_table('tbl_customers');
             $query->where("status", $filter);
@@ -937,7 +953,29 @@ switch ($action) {
             fclose($fp);
             die();
         }
-        $d = Paginator::findMany($query, ['search' => $search], 30, $append_url);
+
+        if (!empty($_COOKIE['customer_per_page']) && $_COOKIE['customer_per_page'] != $config['customer_per_page']) {
+            $d = ORM::for_table('tbl_appconfig')->where('setting', 'customer_per_page')->find_one();
+            if ($d) {
+                $d->value = $_COOKIE['customer_per_page'];
+                $d->save();
+            } else {
+                $d = ORM::for_table('tbl_appconfig')->create();
+                $d->setting = 'customer_per_page';
+                $d->value = $_COOKIE['customer_per_page'];
+                $d->save();
+            }
+        } 
+        if (!empty($config['customer_per_page']) && empty($_COOKIE['customer_per_page'])) {
+            $_COOKIE['customer_per_page'] = $config['customer_per_page'];
+            setcookie('customer_per_page', $config['customer_per_page'], time() + (86400 * 30), "/");
+        }
+
+        $ui->assign('cookie', $_COOKIE['customer_per_page']);
+
+        $per_page = !empty($_COOKIE['customer_per_page']) ? $_COOKIE['customer_per_page'] : (!empty($config['customer_per_page']) ? $config['customer_per_page'] : '30');
+
+        $d = Paginator::findMany($query, ['search' => $search], $per_page, $append_url);
         $ui->assign('d', $d);
         $ui->assign('statuses', ORM::for_table('tbl_customers')->getEnum("status"));
         $ui->assign('filter', $filter);
