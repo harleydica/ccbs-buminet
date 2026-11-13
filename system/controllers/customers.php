@@ -159,14 +159,8 @@ switch ($action) {
         run_hook('view_add_customer'); #HOOK
         $ui->assign('csrf_token',  Csrf::generateAndStoreToken());
 
-        // Generate a unique numeric-only username to show in form
-        $next_username = '';
-        $tries = 0;
-        do {
-            $next_username = (string) random_int(100000, 999999);
-            $tries++;
-        } while (ORM::for_table('tbl_customers')->where('username', $next_username)->find_one() && $tries < 1000);
-        $ui->assign('next_username', $next_username);
+        // Generate sequential numeric-only username starting from 100001
+        $ui->assign('next_username', User::nextUsername());
 
         $ui->display('admin/customers/add.tpl');
         break;
@@ -485,24 +479,14 @@ switch ($action) {
                 continue;
             }
 
-            $newUsername = '';
-            $tries = 0;
-            do {
-                $newUsername = (string) random_int(100000, 999999);
-                $tries++;
-            } while (ORM::for_table('tbl_customers')->where('username', $newUsername)->where_not_equal('id', $legacyUser->id)->find_one() && $tries < 1000);
-
-            $legacyUser->username = $newUsername;
+            $legacyUser->username = User::nextUsername();
             $legacyUser->save();
         }
 
-        // If username is empty, auto-generate numeric-only random ID
-        if (trim($username) == '') {
-            $tries = 0;
-            do {
-                $username = (string) random_int(100000, 999999);
-                $tries++;
-            } while (ORM::for_table('tbl_customers')->where('username', $username)->find_one() && $tries < 1000);
+        // If username is empty, or an auto-generated 6-digit username is already taken
+        // (e.g. two admins opened the form at the same time), use the next sequential one
+        if (trim($username) == '' || (preg_match('/^[0-9]{6}$/', $username) && ORM::for_table('tbl_customers')->where('username', $username)->find_one())) {
+            $username = User::nextUsername();
         }
         $fullname = _post('fullname');
         $password = trim(_post('password'));

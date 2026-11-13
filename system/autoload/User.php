@@ -8,6 +8,20 @@
 
 class User
 {
+    /**
+     * Next sequential customer username (6 digits, starting from 100001).
+     * Based on the highest existing 6-digit numeric username.
+     */
+    public static function nextUsername()
+    {
+        $row = ORM::for_table('tbl_customers')
+            ->select_expr('MAX(CAST(username AS UNSIGNED))', 'max_username')
+            ->where_raw("username REGEXP '^[0-9]{6}$'")
+            ->find_one();
+        $max = $row ? (int) $row->max_username : 0;
+        return (string) max(100001, $max + 1);
+    }
+
     public static function getID()
     {
         global $db_pass;

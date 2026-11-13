@@ -18,7 +18,7 @@
                                     <span class="input-group-addon" id="basic-addon1"><i
                                             class="glyphicon glyphicon-user"></i></span>
                                 {/if}
-                                <input type="text" class="form-control" id="username" name="username"
+                                <input type="text" class="form-control" id="username" name="username" value="{$next_username}"
                                     placeholder="{if $_c['country_code_phone']!= ''}{$_c['country_code_phone']} {Lang::T('Phone Number')}{else}{Lang::T('Usernames')}{/if}">
                             </div>
                         </div>
@@ -315,14 +315,7 @@
             getLocation();
         }
     </script>
-    <script>
-document.addEventListener('DOMContentLoaded', function () {
-    const usernameInput = document.getElementById('username');
-    if (usernameInput && !usernameInput.value.trim()) {
-        usernameInput.value = Math.floor(100000 + Math.random() * 900000);
-    }
-});
-</script>
+
 {/literal}
 
 
